@@ -7,8 +7,8 @@
     "dual_thrust_multiplier": 1.5
   },
   "monitor": {
-    "tickers": ["SPY", "QQQ", "IWM"],
-    "timeframe": "1d",
+    "tickers": ["SMH", "QQQ", "SNDK"],
+    "timeframe": "1h",
     "history_period": "1y",
     "scan_interval_seconds": 60
   },

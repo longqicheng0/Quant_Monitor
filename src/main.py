@@ -1,4 +1,4 @@
-"""Terminal entrypoint for scheduled Aberration monitoring."""
+"""Terminal entrypoint for scheduled strategy monitoring."""
 
 from __future__ import annotations
 
@@ -15,12 +15,19 @@ from src.utils.logger import setup_logger
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Aberration Strategy Monitor")
+    parser = argparse.ArgumentParser(description="Multi-Strategy Monitor")
     parser.add_argument(
         "--config",
         type=str,
         default=None,
         help="Optional JSON config path, e.g. config/settings.example.json",
+    )
+    parser.add_argument(
+        "--strategy",
+        type=str,
+        choices=["aberration", "dual_thrust"],
+        default=None,
+        help="Optional runtime override for strategy_name in config.",
     )
     return parser
 
@@ -29,13 +36,20 @@ def run_once(scanner: AberrationScanner, alert_manager: AlertManager, signal_log
     """Run one scanner cycle, print status, and dispatch events."""
     events, statuses = scanner.scan_once()
 
-    print("\n=== Aberration Monitor Scan ===")
+    print("\n=== Strategy Monitor Scan ===")
     for status in statuses:
-        print(
-            f"{status.ticker:<8} close={status.close:>8.2f} "
-            f"mid={status.middle_band:>8.2f} up={status.upper_band:>8.2f} low={status.lower_band:>8.2f} "
-            f"state={status.state:<5} signal={status.latest_signal}"
-        )
+        if status.strategy_name == "aberration":
+            print(
+                f"[{status.strategy_name.upper()}] {status.ticker:<8} close={status.close:>8.2f} "
+                f"mid={status.middle_band:>8.2f} up={status.upper_band:>8.2f} low={status.lower_band:>8.2f} "
+                f"state={status.state:<5} signal={status.latest_signal}"
+            )
+        else:
+            print(
+                f"[{status.strategy_name.upper()}] {status.ticker:<8} close={status.close:>8.2f} "
+                f"open={status.open_price:>8.2f} up_trg={status.upper_trigger:>8.2f} low_trg={status.lower_trigger:>8.2f} "
+                f"range={status.range_value:>8.2f} state={status.state:<5} signal={status.latest_signal}"
+            )
 
     for event in events:
         alert_manager.send(event)
@@ -45,6 +59,9 @@ def run_once(scanner: AberrationScanner, alert_manager: AlertManager, signal_log
 def main() -> None:
     args = build_parser().parse_args()
     settings = load_settings(args.config)
+
+    if args.strategy:
+        settings.strategy.strategy_name = args.strategy.lower()
 
     Path("data/logs").mkdir(parents=True, exist_ok=True)
     app_logger = setup_logger("aberration-monitor", log_file="data/logs/app.log")
@@ -72,7 +89,10 @@ def main() -> None:
         coalesce=True,
     )
 
-    app_logger.info("Starting Aberration monitor. Press Ctrl+C to stop.")
+    app_logger.info(
+        "Starting monitor with strategy=%s. Press Ctrl+C to stop.",
+        settings.strategy.strategy_name,
+    )
     run_once(scanner, alert_manager, signal_logger)
 
     try:

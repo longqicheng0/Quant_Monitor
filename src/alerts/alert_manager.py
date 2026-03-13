@@ -23,6 +23,7 @@ class AlertManager:
         if self.console:
             print(
                 "[ALERT] "
+                f"[{event.strategy_name.upper()}] "
                 f"{event.event_time} | {event.ticker} | {event.timeframe} | {event.signal_type} "
                 f"close={event.close:.2f}"
             )

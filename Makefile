@@ -3,6 +3,7 @@
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
 CONFIG ?= config/settings.example.json
+STRATEGY ?=
 TICKER ?= SPY
 PERIOD ?= 2y
 
@@ -10,7 +11,7 @@ install:
 	$(PIP) install -r requirements.txt
 
 scan:
-	$(PYTHON) -m src.main --config $(CONFIG)
+	$(PYTHON) -m src.main --config $(CONFIG) $(if $(STRATEGY),--strategy $(STRATEGY),)
 
 dashboard:
 	streamlit run src/dashboard/app.py
