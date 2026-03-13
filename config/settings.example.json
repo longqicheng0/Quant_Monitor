@@ -1,0 +1,32 @@
+{
+  "strategy": {
+    "strategy_name": "aberration",
+    "bollinger_length": 35,
+    "bollinger_multiplier": 2.0,
+    "dual_thrust_lookback": 20,
+    "dual_thrust_multiplier": 1.5
+  },
+  "monitor": {
+    "tickers": ["SPY", "QQQ", "IWM"],
+    "timeframe": "1d",
+    "history_period": "1y",
+    "scan_interval_seconds": 60
+  },
+  "alerts": {
+    "enabled": true,
+    "console": true,
+    "webhook_url": null
+  },
+  "logging": {
+    "enabled": true,
+    "csv_path": "data/logs/signals.csv",
+    "sqlite_path": "data/logs/signals.db",
+    "use_sqlite": false
+  },
+  "backtest": {
+    "enabled": true,
+    "default_ticker": "SPY",
+    "start_date": "2018-01-01",
+    "end_date": "2026-01-01"
+  }
+}
