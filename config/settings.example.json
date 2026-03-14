@@ -1,17 +1,26 @@
 {
   "strategy": {
-    "strategy_name": "aberration",
     "bollinger_length": 35,
-    "bollinger_multiplier": 2.0,
-    "dual_thrust_lookback": 20,
-    "dual_thrust_multiplier": 1.5
+      "bollinger_multiplier": 2.0
   },
   "monitor": {
     "tickers": ["SMH", "QQQ", "SNDK"],
-    "timeframe": "1h",
-    "history_period": "1y",
+      "interval": "1d",
+      "period": "1y",
     "scan_interval_seconds": 60
   },
+    "filters": {
+      "trend_filter_enabled": true,
+      "trend_ma_length": 200,
+      "adx_filter_enabled": true,
+      "adx_threshold": 25.0,
+      "adx_length": 14,
+      "volume_filter_enabled": false,
+      "volume_ma_length": 20,
+      "overextension_filter_enabled": true,
+      "max_body_atr_multiple": 1.8,
+      "atr_length": 14
+    },
   "alerts": {
     "enabled": true,
     "console": true,
@@ -28,5 +37,16 @@
     "default_ticker": "SPY",
     "start_date": "2018-01-01",
     "end_date": "2026-01-01"
+  },
+  "experiment": {
+    "experiment_enabled": true,
+    "experiment_tickers": ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "NFLX"],
+    "benchmark_ticker": "SPY",
+    "interval": "1d",
+    "period": "5y",
+    "atr_stop_enabled": false,
+    "atr_stop_multiple": 2.0,
+    "atr_trailing_enabled": false,
+    "atr_trailing_multiple": 2.5
   }
 }

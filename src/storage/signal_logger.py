@@ -7,7 +7,7 @@ import sqlite3
 from dataclasses import asdict
 from pathlib import Path
 
-from src.scanner import SignalEvent
+from src.core.models import SignalEvent
 
 
 class SignalLogger:
@@ -46,27 +46,11 @@ class SignalLogger:
                     middle_band REAL,
                     upper_band REAL,
                     lower_band REAL,
-                    open_price REAL,
-                    range_value REAL,
-                    upper_trigger REAL,
-                    lower_trigger REAL,
                     bar_time TEXT
                 )
                 """
             )
-            self._ensure_column(conn, "signals", "strategy_name", "TEXT")
-            self._ensure_column(conn, "signals", "open_price", "REAL")
-            self._ensure_column(conn, "signals", "range_value", "REAL")
-            self._ensure_column(conn, "signals", "upper_trigger", "REAL")
-            self._ensure_column(conn, "signals", "lower_trigger", "REAL")
             conn.commit()
-
-    @staticmethod
-    def _ensure_column(conn: sqlite3.Connection, table: str, column: str, sql_type: str) -> None:
-        existing = conn.execute(f"PRAGMA table_info({table})").fetchall()
-        names = {row[1] for row in existing}
-        if column not in names:
-            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {sql_type}")
 
     def log(self, event: SignalEvent) -> None:
         """Store one signal event."""
@@ -102,13 +86,9 @@ class SignalLogger:
                     middle_band,
                     upper_band,
                     lower_band,
-                    open_price,
-                    range_value,
-                    upper_trigger,
-                    lower_trigger,
                     bar_time
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     event.event_time,
@@ -120,10 +100,6 @@ class SignalLogger:
                     event.middle_band,
                     event.upper_band,
                     event.lower_band,
-                    event.open_price,
-                    event.range_value,
-                    event.upper_trigger,
-                    event.lower_trigger,
                     event.bar_time,
                 ),
             )

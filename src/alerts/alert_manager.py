@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from src.scanner import SignalEvent
+from src.core.models import SignalEvent
 
 
 class AlertManager:
@@ -23,12 +23,10 @@ class AlertManager:
         if self.console:
             print(
                 "[ALERT] "
-                f"[{event.strategy_name.upper()}] "
-                f"{event.event_time} | {event.ticker} | {event.timeframe} | {event.signal_type} "
+                f"[ABERRATION] {event.event_time} | {event.ticker} | {event.timeframe} | {event.signal_type} "
                 f"close={event.close:.2f}"
             )
 
-        # Placeholder: Future webhook/Discord/email integrations.
         if self.webhook_url:
             self._send_webhook_placeholder(event)
 

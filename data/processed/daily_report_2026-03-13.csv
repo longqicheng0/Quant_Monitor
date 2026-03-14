@@ -1,0 +1,4 @@
+ticker,decision,bias,latest_signal,close,bar_time,upper_band,lower_band,middle_band,distance_to_upper_pct,distance_to_lower_pct,notes
+SMH,NO_TRADE,NEUTRAL,NO_SIGNAL,387.3299865722656,2026-03-13T00:00:00,425.5743188757036,381.0942515065508,403.3342851911272,0.09873837200648189,0.016099282993550023,"no validated setup on latest close, trend aligned, adx confirmed, candle not overextended"
+QQQ,WATCH_TOMORROW,SHORT,NO_SIGNAL,593.719970703125,2026-03-13T00:00:00,630.6283723698878,590.2584789135944,610.4434256417411,0.06216466261536264,0.005830175773658435,"price closed near trigger band, trend aligned, adx weak, candle not overextended"
+SNDK,NO_TRADE,NEUTRAL,NO_SIGNAL,661.6199951171875,2026-03-13T00:00:00,707.5514389536502,485.3959958259256,596.4737173897879,0.06942269607242932,0.26635228770564706,"no validated setup on latest close, trend aligned, adx weak, candle not overextended"

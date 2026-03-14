@@ -1,4 +1,4 @@
-"""Simple backtester for supported monitoring strategies."""
+"""Simple backtester for Aberration strategy research."""
 
 from __future__ import annotations
 
@@ -7,8 +7,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from src.research.filters import apply_entry_filters, compute_atr
 from src.strategy.aberration import apply_aberration_strategy
-from src.strategy.dual_thrust import apply_dual_thrust_strategy
 
 
 @dataclass
@@ -38,6 +38,11 @@ def _build_summary(df: pd.DataFrame, trades: list[float]) -> dict[str, float]:
 
     num_trades = len(trades)
     win_rate = float(sum(1 for t in trades if t > 0) / num_trades) if num_trades > 0 else 0.0
+    wins = [t for t in trades if t > 0]
+    losses = [t for t in trades if t < 0]
+    avg_win = float(np.mean(wins)) if wins else 0.0
+    avg_loss = float(np.mean(losses)) if losses else 0.0
+    profit_factor = float(sum(wins) / abs(sum(losses))) if losses and abs(sum(losses)) > 0 else 0.0
 
     return {
         "total_return": total_return,
@@ -47,151 +52,177 @@ def _build_summary(df: pd.DataFrame, trades: list[float]) -> dict[str, float]:
         "sharpe_ratio": sharpe,
         "num_trades": float(num_trades),
         "win_rate": win_rate,
+        "avg_win": avg_win,
+        "avg_loss": avg_loss,
+        "profit_factor": profit_factor,
     }
+
+
+def run_signal_backtest(
+    data: pd.DataFrame,
+    strategy_df: pd.DataFrame,
+    strategy_family: str,
+    long_entry_col: str = "long_entry",
+    short_entry_col: str = "short_entry",
+    atr_length: int = 14,
+    atr_stop_enabled: bool = False,
+    atr_stop_multiple: float = 2.0,
+    atr_trailing_enabled: bool = False,
+    atr_trailing_multiple: float = 2.5,
+) -> BacktestResult:
+    """Backtest using strategy signal columns and optional ATR stop logic."""
+    if data.empty or strategy_df.empty:
+        return BacktestResult(summary={}, curve=pd.DataFrame())
+
+    df = strategy_df.copy()
+    df["ret"] = data["Close"].pct_change().fillna(0.0)
+    df["atr"] = compute_atr(data, length=atr_length)
+
+    positions = np.zeros(len(df), dtype=float)
+    strategy_rets = np.zeros(len(df), dtype=float)
+
+    position = 0
+    trades: list[float] = []
+    open_trade: dict[str, float] | None = None
+    trailing_stop: float | None = None
+
+    for i in range(1, len(df)):
+        sig_row = df.iloc[i - 1]
+        sig_close = float(sig_row["Close"])
+        sig_atr = float(sig_row.get("atr", float("nan")))
+
+        long_signal = bool(sig_row.get(long_entry_col, False))
+        short_signal = bool(sig_row.get(short_entry_col, False))
+
+        if open_trade is not None and (atr_stop_enabled or atr_trailing_enabled) and not np.isnan(sig_atr):
+            if position == 1:
+                if trailing_stop is None:
+                    trailing_stop = open_trade["entry_price"] - atr_stop_multiple * sig_atr
+                if atr_trailing_enabled:
+                    trailing_stop = max(trailing_stop, sig_close - atr_trailing_multiple * sig_atr)
+                if sig_close <= trailing_stop:
+                    pnl = (sig_close - open_trade["entry_price"]) / open_trade["entry_price"]
+                    trades.append(float(pnl))
+                    position = 0
+                    open_trade = None
+                    trailing_stop = None
+
+            elif position == -1:
+                if trailing_stop is None:
+                    trailing_stop = open_trade["entry_price"] + atr_stop_multiple * sig_atr
+                if atr_trailing_enabled:
+                    trailing_stop = min(trailing_stop, sig_close + atr_trailing_multiple * sig_atr)
+                if sig_close >= trailing_stop:
+                    pnl = (open_trade["entry_price"] - sig_close) / open_trade["entry_price"]
+                    trades.append(float(pnl))
+                    position = 0
+                    open_trade = None
+                    trailing_stop = None
+
+        if strategy_family != "aberration":
+            raise ValueError(f"Unsupported strategy_family: {strategy_family}")
+
+        long_exit = bool(sig_row.get("long_exit", False))
+        short_exit = bool(sig_row.get("short_exit", False))
+
+        if position == 0:
+            if long_signal:
+                position = 1
+                open_trade = {"entry_price": sig_close}
+                trailing_stop = None
+            elif short_signal:
+                position = -1
+                open_trade = {"entry_price": sig_close}
+                trailing_stop = None
+        elif position == 1 and long_exit:
+            pnl = (sig_close - open_trade["entry_price"]) / open_trade["entry_price"]
+            trades.append(float(pnl))
+            position = 0
+            open_trade = None
+            trailing_stop = None
+        elif position == -1 and short_exit:
+            pnl = (open_trade["entry_price"] - sig_close) / open_trade["entry_price"]
+            trades.append(float(pnl))
+            position = 0
+            open_trade = None
+            trailing_stop = None
+
+        positions[i] = position
+        strategy_rets[i] = position * float(df.iloc[i]["ret"])
+
+    df["position"] = positions
+    df["strategy_ret"] = strategy_rets
+    df["strategy_curve"] = (1.0 + df["strategy_ret"]).cumprod()
+    df["buy_hold_curve"] = (1.0 + df["ret"]).cumprod()
+
+    summary = _build_summary(df=df, trades=trades)
+    curve = df[["Close", "strategy_curve", "buy_hold_curve", "position"]].copy()
+    return BacktestResult(summary=summary, curve=curve)
 
 
 def run_aberration_backtest(
     data: pd.DataFrame,
     length: int = 35,
     multiplier: float = 2.0,
+    atr_length: int = 14,
+    atr_stop_enabled: bool = False,
+    atr_stop_multiple: float = 2.0,
+    atr_trailing_enabled: bool = False,
+    atr_trailing_multiple: float = 2.5,
+    apply_filters: bool = False,
+    filter_settings=None,
 ) -> BacktestResult:
-    """Backtest Aberration with one active position at a time.
-
-    Position values:
-    - 0 = flat
-    - 1 = long
-    - -1 = short
-    """
+    """Backtest Aberration with optional filter-gated entries and ATR risk rules."""
     if data.empty:
         return BacktestResult(summary={}, curve=pd.DataFrame())
 
-    df = apply_aberration_strategy(data, length=length, multiplier=multiplier).copy()
-    df["ret"] = df["Close"].pct_change().fillna(0.0)
+    frame = apply_aberration_strategy(data, length=length, multiplier=multiplier)
+    long_col = "long_entry"
+    short_col = "short_entry"
 
-    positions = np.zeros(len(df), dtype=float)
-    strategy_rets = np.zeros(len(df), dtype=float)
+    if apply_filters:
+        if filter_settings is None:
+            raise ValueError("filter_settings is required when apply_filters=True")
+        frame = apply_entry_filters(frame, config=filter_settings)
+        long_col = "long_entry_filtered"
+        short_col = "short_entry_filtered"
 
-    position = 0
-    trades = []
-    open_trade = None
-
-    for i in range(1, len(df)):
-        sig_row = df.iloc[i - 1]
-        sig_time = df.index[i - 1]
-        sig_close = float(sig_row["Close"])
-
-        if position == 0:
-            if bool(sig_row["long_entry"]):
-                position = 1
-                open_trade = {"side": "long", "entry_price": sig_close, "entry_time": sig_time}
-            elif bool(sig_row["short_entry"]):
-                position = -1
-                open_trade = {"side": "short", "entry_price": sig_close, "entry_time": sig_time}
-        elif position == 1 and bool(sig_row["long_exit"]):
-            if open_trade:
-                pnl = (sig_close - open_trade["entry_price"]) / open_trade["entry_price"]
-                trades.append(float(pnl))
-            position = 0
-            open_trade = None
-        elif position == -1 and bool(sig_row["short_exit"]):
-            if open_trade:
-                pnl = (open_trade["entry_price"] - sig_close) / open_trade["entry_price"]
-                trades.append(float(pnl))
-            position = 0
-            open_trade = None
-
-        positions[i] = position
-        strategy_rets[i] = position * float(df.iloc[i]["ret"])
-
-    df["position"] = positions
-    df["strategy_ret"] = strategy_rets
-    df["strategy_curve"] = (1.0 + df["strategy_ret"]).cumprod()
-    df["buy_hold_curve"] = (1.0 + df["ret"]).cumprod()
-
-    summary = _build_summary(df=df, trades=trades)
-
-    curve = df[["Close", "strategy_curve", "buy_hold_curve", "position"]].copy()
-    return BacktestResult(summary=summary, curve=curve)
-
-
-def run_dual_thrust_backtest(
-    data: pd.DataFrame,
-    lookback: int = 20,
-    multiplier: float = 1.5,
-) -> BacktestResult:
-    """Backtest Dual Thrust with one position and opposite-signal flips."""
-    if data.empty:
-        return BacktestResult(summary={}, curve=pd.DataFrame())
-
-    df = apply_dual_thrust_strategy(data, lookback=lookback, multiplier=multiplier).copy()
-    df["ret"] = df["Close"].pct_change().fillna(0.0)
-
-    positions = np.zeros(len(df), dtype=float)
-    strategy_rets = np.zeros(len(df), dtype=float)
-
-    position = 0
-    trades = []
-    open_trade = None
-
-    for i in range(1, len(df)):
-        sig_row = df.iloc[i - 1]
-        sig_time = df.index[i - 1]
-        sig_close = float(sig_row["Close"])
-
-        long_signal = bool(sig_row.get("long_entry", False))
-        short_signal = bool(sig_row.get("short_entry", False))
-
-        if position == 0:
-            if long_signal:
-                position = 1
-                open_trade = {"side": "long", "entry_price": sig_close, "entry_time": sig_time}
-            elif short_signal:
-                position = -1
-                open_trade = {"side": "short", "entry_price": sig_close, "entry_time": sig_time}
-
-        elif position == 1 and short_signal:
-            if open_trade:
-                pnl = (sig_close - open_trade["entry_price"]) / open_trade["entry_price"]
-                trades.append(float(pnl))
-            position = -1
-            open_trade = {"side": "short", "entry_price": sig_close, "entry_time": sig_time}
-
-        elif position == -1 and long_signal:
-            if open_trade:
-                pnl = (open_trade["entry_price"] - sig_close) / open_trade["entry_price"]
-                trades.append(float(pnl))
-            position = 1
-            open_trade = {"side": "long", "entry_price": sig_close, "entry_time": sig_time}
-
-        positions[i] = position
-        strategy_rets[i] = position * float(df.iloc[i]["ret"])
-
-    df["position"] = positions
-    df["strategy_ret"] = strategy_rets
-    df["strategy_curve"] = (1.0 + df["strategy_ret"]).cumprod()
-    df["buy_hold_curve"] = (1.0 + df["ret"]).cumprod()
-
-    summary = _build_summary(df=df, trades=trades)
-
-    curve = df[["Close", "strategy_curve", "buy_hold_curve", "position"]].copy()
-    return BacktestResult(summary=summary, curve=curve)
+    return run_signal_backtest(
+        data=data,
+        strategy_df=frame,
+        strategy_family="aberration",
+        long_entry_col=long_col,
+        short_entry_col=short_col,
+        atr_length=atr_length,
+        atr_stop_enabled=atr_stop_enabled,
+        atr_stop_multiple=atr_stop_multiple,
+        atr_trailing_enabled=atr_trailing_enabled,
+        atr_trailing_multiple=atr_trailing_multiple,
+    )
 
 
 def run_backtest(
-    strategy_name: str,
     data: pd.DataFrame,
     bollinger_length: int = 35,
     bollinger_multiplier: float = 2.0,
-    dual_thrust_lookback: int = 20,
-    dual_thrust_multiplier: float = 1.5,
+    atr_length: int = 14,
+    atr_stop_enabled: bool = False,
+    atr_stop_multiple: float = 2.0,
+    atr_trailing_enabled: bool = False,
+    atr_trailing_multiple: float = 2.5,
+    apply_filters: bool = False,
+    filter_settings=None,
 ) -> BacktestResult:
-    """Dispatch backtest run by strategy name."""
-    name = strategy_name.lower()
-
-    if name == "aberration":
-        return run_aberration_backtest(data, length=bollinger_length, multiplier=bollinger_multiplier)
-
-    if name == "dual_thrust":
-        return run_dual_thrust_backtest(data, lookback=dual_thrust_lookback, multiplier=dual_thrust_multiplier)
-
-    raise ValueError(f"Unsupported strategy_name: {strategy_name}")
+    """Run an Aberration backtest with optional filters and ATR risk rules."""
+    return run_aberration_backtest(
+        data=data,
+        length=bollinger_length,
+        multiplier=bollinger_multiplier,
+        atr_length=atr_length,
+        atr_stop_enabled=atr_stop_enabled,
+        atr_stop_multiple=atr_stop_multiple,
+        atr_trailing_enabled=atr_trailing_enabled,
+        atr_trailing_multiple=atr_trailing_multiple,
+        apply_filters=apply_filters,
+        filter_settings=filter_settings,
+    )

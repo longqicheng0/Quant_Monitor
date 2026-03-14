@@ -1,6 +1,6 @@
 import pandas as pd
 
-from src.strategy.signals import classify_latest_signal_for_strategy, cross_above, cross_below
+from src.strategy.signals import classify_latest_signal, cross_above, cross_below
 
 
 def test_cross_above_strict_rule():
@@ -19,19 +19,21 @@ def test_cross_below_strict_rule():
     assert bool(out.iloc[2]) is True
 
 
-def test_dual_thrust_flip_classification():
+def test_aberration_entry_classification():
     df = pd.DataFrame(
         {
             "long_entry": [False, True],
             "short_entry": [False, False],
+            "long_exit": [False, False],
+            "short_exit": [False, False],
         }
     )
-    signal, state = classify_latest_signal_for_strategy(df, strategy_name="dual_thrust", current_state="short")
-    assert signal == "SHORT_EXIT_ON_FLIP_TO_LONG"
+    signal, state = classify_latest_signal(df, current_state="flat")
+    assert signal == "LONG_ENTRY"
     assert state == "long"
 
 
-def test_aberration_classification_unchanged():
+def test_aberration_exit_classification():
     df = pd.DataFrame(
         {
             "long_entry": [False, False],
@@ -40,6 +42,6 @@ def test_aberration_classification_unchanged():
             "short_exit": [False, False],
         }
     )
-    signal, state = classify_latest_signal_for_strategy(df, strategy_name="aberration", current_state="long")
+    signal, state = classify_latest_signal(df, current_state="long")
     assert signal == "LONG_EXIT"
     assert state == "flat"

@@ -210,3 +210,9 @@ __marimo__/
 data/logs/*.csv
 data/logs/*.db
 data/logs/*.log
+data/processed/*_results.csv
+data/processed/*_aggregate.csv
+data/processed/*_family_comparison.csv
+data/processed/*_return_heatmap.png
+data/processed/*_drawdown_comparison.png
+data/processed/*_return_comparison.png

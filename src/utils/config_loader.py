@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from config.settings import AppSettings, DEFAULT_SETTINGS
 
 
@@ -18,7 +20,8 @@ def load_settings(config_path: str | None = None) -> AppSettings:
         Validated AppSettings object.
     """
     if not config_path:
-        return DEFAULT_SETTINGS
+        # Return a fresh copy so runtime overrides do not mutate global defaults.
+        return AppSettings.model_validate(DEFAULT_SETTINGS.model_dump())
 
     path = Path(config_path)
     if not path.exists():
@@ -27,7 +30,13 @@ def load_settings(config_path: str | None = None) -> AppSettings:
     if path.suffix.lower() != ".json":
         raise ValueError("Only JSON config files are supported in this starter project.")
 
-    with path.open("r", encoding="utf-8") as handle:
-        payload = json.load(handle)
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Config JSON parse error in {config_path}: {exc}") from exc
 
-    return AppSettings.model_validate(payload)
+    try:
+        return AppSettings.model_validate(payload)
+    except ValidationError as exc:
+        raise ValueError(f"Config validation error in {config_path}: {exc}") from exc
