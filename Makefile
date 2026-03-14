@@ -1,4 +1,4 @@
-.PHONY: install scan report dashboard test replay replay-qqq backtest experiments doctor
+.PHONY: install scan report dashboard test replay replay-qqq backtest experiments doctor ezsim
 
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
@@ -7,6 +7,21 @@ TICKERS ?=
 TICKER ?= QQQ
 PERIOD ?= 2y
 INTERVAL ?= 1d
+
+ifeq ($(firstword $(MAKECMDGOALS)),ezsim)
+EZSIM_TICKER := $(word 2,$(MAKECMDGOALS))
+EZSIM_INTERVAL := $(word 3,$(MAKECMDGOALS))
+EZSIM_PERIOD := $(word 4,$(MAKECMDGOALS))
+ifneq ($(EZSIM_TICKER),)
+$(eval $(EZSIM_TICKER):;@:)
+endif
+ifneq ($(EZSIM_INTERVAL),)
+$(eval $(EZSIM_INTERVAL):;@:)
+endif
+ifneq ($(EZSIM_PERIOD),)
+$(eval $(EZSIM_PERIOD):;@:)
+endif
+endif
 
 install:
 	$(PIP) install -r requirements.txt
@@ -37,3 +52,6 @@ experiments:
 
 doctor:
 	$(PYTHON) -m src.cli.commands --doctor --config $(CONFIG)
+
+ezsim:
+	$(PYTHON) scripts/ezSim.py $(EZSIM_TICKER) $(EZSIM_INTERVAL) $(EZSIM_PERIOD)

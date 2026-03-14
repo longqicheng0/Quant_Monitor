@@ -1,0 +1,2 @@
+ticker,interval,period,start_capital_cad,bars_used,strategy_return,buy_hold_return,strategy_end_value_cad,buy_hold_end_value_cad,strategy_pnl_cad,buy_hold_pnl_cad,max_drawdown,sharpe_ratio,num_trades,win_rate
+HG.CN,4h,1y,100000.0,499,13.199362977413253,26.2580636912156,1419936.2977413253,2725806.36912156,1319936.2977413253,2625806.36912156,-0.6185325301241067,1.8621306568636053,8,0.625

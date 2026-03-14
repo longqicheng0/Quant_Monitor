@@ -1,0 +1,2 @@
+ticker,interval,period,start_capital_cad,bars_used,strategy_return,buy_hold_return,strategy_end_value_cad,buy_hold_end_value_cad,strategy_pnl_cad,buy_hold_pnl_cad,max_drawdown,sharpe_ratio,num_trades,win_rate
+KRKNF,4h,1y,100000.0,496,0.7959940868509141,3.2795029846377606,179599.40868509142,427950.29846377607,79599.40868509142,327950.29846377607,-0.311444866469506,1.0350098444586948,6,0.5

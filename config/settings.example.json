@@ -7,7 +7,7 @@
     "tickers": ["SMH", "QQQ", "SNDK"],
       "interval": "1d",
       "period": "1y",
-    "scan_interval_seconds": 60
+    "scan_interval_seconds": 3600
   },
     "filters": {
       "trend_filter_enabled": true,
